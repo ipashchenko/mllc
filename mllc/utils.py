@@ -37,3 +37,9 @@ def f1(cm):
     return 2 * (precision(cm) * recall(cm) / (precision(cm) + recall(cm)))
 
 
+def print_cm_summary(cm):
+    print("Confusion matrix:", cm)
+    print("Precision: ", precision(cm))
+    print("Recall :", recall(cm))
+    print("F1-score :", f1(cm))
+
