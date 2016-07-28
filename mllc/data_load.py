@@ -71,3 +71,26 @@ def load_data(fnames, names, names_to_delete):
     y[len(dfs[0]):] = np.ones(len(X) - len(dfs[0]))
 
     return X, y, features_names
+
+
+if __name__ == '__main__':
+    import os
+    import glob
+    data_dir = 'C:\Users\Ilya\Documents\Github\mllc\data\data_for_ML_test_20160722\dataset_OGLE\indexes_normalized'
+
+    fnames = glob.glob(os.path.join(data_dir, '*.log'))[::-1]
+    n_cv_iter = 5
+    names = ['Magnitude', 'clipped_sigma', 'meaningless_1', 'meaningless_2',
+             'star_ID', 'weighted_sigma', 'skew', 'kurt', 'I', 'J', 'K', 'L',
+             'Npts', 'MAD', 'lag1', 'RoMS', 'rCh2', 'Isgn', 'Vp2p', 'Jclp',
+             'Lclp',
+             'Jtim', 'Ltim', 'CSSD', 'Ex', 'inv_eta', 'E_A', 'S_B', 'NXS',
+             'IQR']
+
+    names_to_delete = ['Magnitude', 'meaningless_1', 'meaningless_2', 'star_ID',
+                       'Npts']
+
+    X, y, feature_names = load_data(fnames, names, names_to_delete)
+    import pickle
+    with open('X_y_feat_names.pkl', 'wb') as fo:
+        pickle.dump((X, y, feature_names), fo)
