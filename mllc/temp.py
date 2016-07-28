@@ -14,6 +14,7 @@ names = ['Magnitude', 'clipped_sigma', 'meaningless_1', 'meaningless_2',
          'star_ID', 'weighted_sigma', 'skew', 'kurt', 'I', 'J', 'K', 'L',
          'Npts', 'MAD', 'lag1', 'RoMS', 'rCh2', 'Isgn', 'Vp2p', 'Jclp', 'Lclp',
          'Jtim', 'Ltim', 'CSSD', 'Ex', 'inv_eta', 'E_A', 'S_B', 'NXS', 'IQR']
+features_names = names
 df_1 = pd.read_table(os.path.join(data_dir, file_1), names=names,
                      engine='python', na_values='+inf', sep=r"\s*",
                      usecols=range(30))
@@ -21,21 +22,19 @@ df_0 = pd.read_table(os.path.join(data_dir, file_0), names=names,
                      engine='python', na_values='+inf', sep=r"\s*",
                      usecols=range(30))
 
-# Remove meaningless features
+# Features to remove
+features_to_delete = ['Magnitude', 'meaningless_1', 'meaningless_2', 'star_ID']
+
+# Remove meaningless features & transforming some using only subclasses data
 for df in (df_0, df_1):
-    del df['Magnitude']
-    del df['meaningless_1']
-    del df['meaningless_2']
-    del df['star_ID']
+    for feature in features_to_delete:
+        del df[feature]
     df['CSSD'] = np.log(df['CSSD'] + df['CSSD'].median())
 
-# List of feature names
-features_names = list(df_0)
-# Count number of NaN for eac feature
-for feature in features_names:
-    print(feature, df_0[feature].isnull().sum())
-for feature in features_names:
-    print(feature, df_1[feature].isnull().sum())
+# Count number of NaN for each feature
+for df in (df_0, df_1):
+    for feature in features_names:
+        print("Feature {} has {} NaNs".format(feature, df[feature].isnull().sum()))
 
 # Plot correlation matrix
 for df in (df_0, df_1):
@@ -60,6 +59,7 @@ skf = StratifiedShuffleSplit(y, n_iter=1, test_size=0.2)
 for train_index, test_index in skf:
     X_train, X_test = X[train_index], X[test_index]
     y_train, y_test = y[train_index], y[test_index]
+# Sample sizes & proportion of variable stars in samples
 print("Train data: ", len(y_train),
       float(np.count_nonzero(y_train)) / len(y_train))
 print("Test data: ", len(y_test),
@@ -84,6 +84,7 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.pipeline import make_pipeline
 
 # Just use arbitrary values of hyper parameters
+print("Trying some models without parameters tuning...")
 model_rf = RandomForestClassifier(n_estimators=100)
 model_kn = KNeighborsClassifier(n_neighbors=10)
 model_lr = LogisticRegression(penalty='l1', tol=0.01)
@@ -148,7 +149,7 @@ for clf_name, model in models.items():
     print(clf_name)
     print_cm_summary(cm)
     np.set_printoptions(precision=2)
-    sea.heatmap(cm_normalized)
+    sea.heatmap(cm_normalized, annot=True, fmt='%0.3f')
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.title(clf_name)
@@ -173,8 +174,8 @@ for i, (train_index, test_index) in enumerate(skf):
     print_cm_summary(cm)
 
 
-# # Finally fit GBC
-print("Using GBC")
+# Finally fit GBC
+print("Using GBC...")
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.grid_search import GridSearchCV
 import sklearn.pipeline
@@ -183,38 +184,37 @@ skf = StratifiedShuffleSplit(y, n_iter=n_cv_iter, test_size=1./n_cv_iter)
 imp = Imputer(missing_values='NaN', strategy='median', axis=0, verbose=2)
 steps = [('imputation', imp), ('scaling', StandardScaler()),
          ('classification',
-          GradientBoostingClassifier(verbose=0, n_estimators=1000))]
+          GradientBoostingClassifier(verbose=0, n_estimators=1000,
+                                     subsample=0.5))]
 pipeline = sklearn.pipeline.Pipeline(steps)
-param_grid = {'classification__learning_rate': [0.3, 0.1, 0.05, 0.01],
-              'classification__max_depth': [2, 3, 4, 5],
+param_grid = {'classification__learning_rate': [0.1, 0.05, 0.01],
+              'classification__max_depth': [2, 3, 5, 7],
               'classification__min_samples_leaf': [2, 4, 8, 16],
               'classification__max_features': [1.0, 0.5, 0.2, 0.1]}
 
-gs_cv = GridSearchCV(pipeline, param_grid, cv=skf, n_jobs=1).fit(X, y)
+print("Searching best parameters...")
+gs_cv = GridSearchCV(pipeline, param_grid, cv=skf, n_jobs=4).fit(X, y)
 print("The best parameters are %s with a score of %0.2f"
       % (gs_cv.best_params_, gs_cv.best_score_))
+print "Feature" \
+      " importance : {}".format(gs_cv.best_estimator_.named_steps['classification'].feature_importances_ /
+                                np.sum(gs_cv.best_estimator_.named_steps['classification'].feature_importances_))
+from plotting import plot_importance
+plot_importance(gs_cv.best_estimator_.named_steps['classification'],
+                features_names)
 
 # Final fit with best parameters
-clf_final = make_pipeline(imp, StandardScaler(),
-                          GradientBoostingClassifier(n_estimators=1000,
-                                                     **gs_cv.best_params_))
-skf = StratifiedShuffleSplit(y, n_iter=1, test_size=0.2)
-for train_index, test_index in skf:
-    X_train, X_test = X[train_index], X[test_index]
-    y_train, y_test = y[train_index], y[test_index]
-clf_final.fit(X_train, y_train)
-print "Feature" \
-      " importance : {}".format(clf_final.named_steps['gradientboostingclassifier'].feature_importances_ /
-                                np.sum(clf_final.named_steps['gradientboostingclassifiers'].feature_importances_))
-y_pred = clf_final.predict(X_test)
-report = sklearn.metrics.classification_report(y_test, y_pred)
-print(report)
-cm = confusion_matrix(y_test, y_pred)
-cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-print_cm_summary(cm)
+best_pipe = gs_cv.best_estimator_
+best_pipe.named_steps['classification'].set_params(n_estimators=3000)
+skf = StratifiedShuffleSplit(y, n_iter=5, test_size=0.2)
+scores = cross_validation.cross_val_score(best_pipe, X, y, cv=skf,
+                                          scoring='f1_weighted')
+print("CV scores: ", scores)
 
 
 # Using imputation, scaling, Randomized PCA & Random Forest
+print("Checking PCA importance for RandomForest")
+print("Using imputation, scaling, Randomized PCA...")
 from sklearn import decomposition, pipeline
 imp = Imputer(missing_values='NaN', strategy='median', axis=0, verbose=2)
 pca = decomposition.RandomizedPCA()
@@ -269,6 +269,7 @@ print_cm_summary(cm)
 
 
 # Using imputation, scaling, PCA & Random Forest
+print("Using imputation, scaling, original PCA...")
 imp = Imputer(missing_values='NaN', strategy='median', axis=0, verbose=2)
 pca = decomposition.PCA()
 pca_pipe = pipeline.Pipeline(steps=[('imputation', imp),
@@ -320,6 +321,7 @@ cm = confusion_matrix(y_test, y_pred)
 print_cm_summary(cm)
 
 # Now without PCA
+print("Using just imputation & scaling...")
 imp = Imputer(missing_values='NaN', strategy='median', axis=0, verbose=2)
 clf_pipe = pipeline.Pipeline(steps=[('imputation', imp),
                                     ('scaling', StandardScaler()),

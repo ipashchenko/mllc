@@ -43,3 +43,7 @@ def print_cm_summary(cm):
     print("Recall :", recall(cm))
     print("F1-score :", f1(cm))
 
+
+def cm_scores(cm):
+    return precision(cm), recall(cm), f1(cm)
+
