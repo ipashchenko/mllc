@@ -9,6 +9,8 @@ from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import Imputer
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 import sklearn.pipeline
 
 
@@ -31,10 +33,12 @@ imp = Imputer(missing_values='NaN', strategy='median', axis=0, verbose=2)
 steps = [('imputation', imp),
          ('scaling', StandardScaler()),
          ('classification',
-          GradientBoostingClassifier(verbose=0, n_estimators=3000,
-                                     subsample=0.8, learning_rate=0.02,
-                                     max_depth=5, min_samples_leaf=5,
-                                     max_features=0.5))]
+          KNeighborsClassifier(weights='distance', n_neighbors=250, n_jobs=-1))]
+          # SVC(C=1.0, class_weight='balanced', gamma=0.01))]
+          # GradientBoostingClassifier(verbose=0, n_estimators=800,
+          #                            subsample=0.6, learning_rate=0.01,
+          #                            max_depth=7, min_samples_leaf=5,
+          #                            max_features=7, min_samples_split=300))]
 pipeline = sklearn.pipeline.Pipeline(steps)
 ps, rs, f1s = [], [], []
 for i, (train_index, test_index) in enumerate(skf):
@@ -43,8 +47,8 @@ for i, (train_index, test_index) in enumerate(skf):
     y_train, y_test = y[train_index], y[test_index]
     y_pred = pipeline.fit(X_train, y_train).predict(X_test)
     clf = pipeline.named_steps['classification']
-    plot_importance(clf, feature_names,
-                    'feature_importance_OGLE_scale_cv_{}_fix_CSSD.png'.format(i))
+    # plot_importance(clf, feature_names,
+    #                 'feature_importance_OGLE_scale_cv_{}_fix_CSSD.png'.format(i))
     cm = confusion_matrix(y_test, y_pred)
     try:
         print_cm_summary(cm)

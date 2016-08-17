@@ -39,26 +39,27 @@ def load_data(fnames, names, names_to_delete):
     # Remove meaningless features
     delta = list()
     for df in dfs:
-        delta.append(df['CSSD'].median())
-    delta = np.mean(delta)
+        delta.append(df['CSSD'].min())
+    # print delta
+    delta = np.min([d for d in delta if not np.isinf(d)])
 
     for df in dfs:
         for name in names_to_delete:
             del df[name]
         try:
-            shift_log_transform(df, 'CSSD', delta)
+            shift_log_transform(df, 'CSSD', -delta + 0.1)
         except KeyError:
             pass
 
     # List of feature names
     features_names = list(dfs[0])
     # Count number of NaN for each feature
-    for i, df in enumerate(dfs):
-        print("File {}".format(i))
-        for feature in features_names:
-            print("Feature {} has {} NaNs".format(feature,
-                                                  df[feature].isnull().sum()))
-        print("=======================")
+    # for i, df in enumerate(dfs):
+        # print("File {}".format(i))
+        # for feature in features_names:
+        #     print("Feature {} has {} NaNs".format(feature,
+        #                                           df[feature].isnull().sum()))
+        # print("=======================")
 
     # Convert to numpy arrays
     # Features
@@ -76,7 +77,7 @@ def load_data(fnames, names, names_to_delete):
 if __name__ == '__main__':
     import os
     import glob
-    data_dir = 'C:\Users\Ilya\Documents\Github\mllc\data\data_for_ML_test_20160722\dataset_OGLE\indexes_normalized'
+    data_dir = '/home/ilya/code/mllc/data/dataset_OGLE/indexes_normalized'
 
     fnames = glob.glob(os.path.join(data_dir, '*.log'))[::-1]
     n_cv_iter = 5
