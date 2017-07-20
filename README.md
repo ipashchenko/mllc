@@ -1,2 +1,1 @@
-# mllc
-Machine Learning for Light Curves
+Beware this possibly completely useless
